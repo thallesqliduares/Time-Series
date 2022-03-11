@@ -1,0 +1,402 @@
+---
+title: "Modelo de séries temporais para projeção da demanda de caminhões no Brasil"
+author: "Thalles Quinaglia Liduares"
+date: "10/03/2022"
+output: html_document
+---
+
+
+```{r, warning=FALSE, message=FALSE, include=FALSE}
+
+# Upload pacotes
+
+library(lmreg)
+library(readxl)
+library(dplyr)
+library(corrplot)
+library(lmtest)
+library(TSstudio)
+library(tseries)
+library(ggplot2)
+library(plotly)
+library(tsibble)
+library(feasts)
+
+source("http://www.sthda.com/upload/rquery_cormat.r")
+```
+
+
+```{r, warning=FALSE, message=FALSE, include=FALSE}
+
+# Upload database 
+
+setwd("C:\\Program Files\\R\\Dados")
+
+data<-readxl::read_excel("Data_Thalles.xlsx")
+
+attach(data)
+
+```
+
+## Introdução 
+
+Na indústria automobilística, projeções de demanda por veiculos são de suma importância
+para este segmento de mercado. A partir de modelos econométricos, como _regressão linear multipla_
+e _análise de séries temporais_ é possivel simular e estimar computacionalmente
+como se comporta a venda de automóveis em determinado país, região,empresa etc.
+Especificamente, neste teste, será modelado a demanda por caminhões no Brasil,
+a partir de dados mensais de vendas do periodo 2003-2021, e séries macroeconômicas 
+como taxas de câmbio, juros e inflação. Ademais, indices de confiança, 
+crédito e emprego serão utilizados nesta modelagem.
+
+
+### Analise de correlação das variaveis explicativas do modelo.
+
+Seleção das variáveis para análise de correlação.
+
+```{r}
+
+vars<- data %>%
+      select(Trucks,`IBC-BR`,`Industrial Production`,`Retail Sales`,
+             `Business Credit Concessions`,`Business Confidence Index`,`Commodity Price Index`, 
+             `Index of Employed Persons - Industry`,`Base Interest Rate`,`Uncertainty Index`, 
+             `Tx Cambio Real`)
+
+rquery.cormat(vars)
+
+```
+
+Destaca-se, com base na matriz de correlação acima, 
+
+* uma alta correlação entre o volume de 
+vendas no varejo e o indice de pessoas empregadas na indústria
+
+* volume de concessão de crédito e vendas no varejo
+
+* volume de vendas de caminhões com indice de confiança dos empresários
+
+### Análise de causalidade via teste de Granger 
+
+**Trucks x Taxa Câmbio Real** 
+
+```{r}
+
+test1<- grangertest(Trucks~`Tx Cambio Real`, order= 3, data)
+
+test2<-grangertest(`Tx Cambio Real`~Trucks, order=3, data)
+
+test1
+
+test2
+
+```
+Com base no p-valor, constata-se que a variável `Tx Cambio Real` não é um boa 
+preditora do volume de vendas de caminhões.
+
+
+**Trucks x Retail Sales**
+
+```{r}
+
+test3<-grangertest(Trucks~`Retail Sales`, order=3,data)
+
+test4<-grangertest(`Retail Sales`~Trucks, order=3,data)
+
+test3 
+
+test4 
+
+```
+Neste caso, constata-se que a variável `Retail Sales` é uma boa preditora
+para o volume de vendas de caminhões.
+
+
+**Trucks x IBC_BR**
+
+```{r}
+
+test5<-grangertest(Trucks~`IBC-BR`,order=3,data)
+
+test6<-grangertest(`IBC-BR`~Trucks,order=3,data)
+
+test5
+
+test6
+  
+```
+
+Neste caso, a variável `IBC_BR` não é um boa preditora para o volume de 
+vendas de caminhões.
+
+```{r}
+
+test7<-grangertest(Trucks~`IBC-BR`,order=1,data)
+
+test8<-grangertest(`IBC-BR`~Trucks,order=1,data)
+
+test7
+
+test8
+
+```
+
+De fato, evidencia-se que a variável `IBC-BR` não é uma boa preditora do volume 
+de vendas de caminhões no Brasil.
+
+
+**Trucks x Business Credit Concession**
+
+```{r}
+
+test9<-grangertest(Trucks~`Business Credit Concessions`,order=3, data)
+
+test10<-grangertest(`Business Credit Concessions`~Trucks,order=3, data)
+
+test9
+
+test10
+
+```
+
+Neste caso, a variável `Business Credit Concessions` é uma boa preditora
+do volume de vendas de caminhões.
+
+
+**Trucks x Business Confidence Index**
+
+
+```{r}
+
+test11<-grangertest(Trucks~`Business Confidence Index`, order=3, data)
+
+test12<-grangertest(`Business Confidence Index`~Trucks, order=3, data)
+
+test11
+
+test12
+```
+
+Neste caso, a variável `Business Confidence - Index` é uma boa preditora 
+do volume de vendas de caminhões.
+
+
+**Trucks x Uncentainy Index **
+
+```{r}
+
+test13<-grangertest(Trucks~`Uncertainty Index`,order=3, data)
+
+test14<-grangertest(`Uncertainty Index`~Trucks,order=3, data)
+
+test13
+
+test14
+
+```
+Neste caso, a variável `Uncertainy Index` é uma boa preditora do volume de 
+vendas de caminhões.
+
+
+```{r}
+
+test15<-grangertest(Trucks~`Base Interest Rate`, order=3, data)
+
+test16<-grangertest(`Base Interest Rate`~Trucks, order=3, data)
+
+test15
+
+test16
+
+```
+Portanto, neste caso, a variável `Base Interest Rate` não é uma boa preditora do 
+volume de vendas de caminhões.
+
+
+**Trucks x Industry Employ**
+
+
+```{r}
+
+test17<-grangertest(Trucks~`Index of Employed Persons - Industry`, order=3, data)
+
+test18<-grangertest(`Index of Employed Persons - Industry`~Trucks, order=3, data)
+
+test17
+
+test18
+
+```
+
+
+Portanto, a variável `Index of Employed Person - Industry` é uma boa preditora 
+do volume de vendas de caminhões.
+
+
+**Trucks x Industrial Production**
+
+
+```{r}
+
+test19<-grangertest(Trucks~`Industrial Production`, order=3, data)
+
+test20<-grangertest(`Industrial Production`~Trucks, order=3, data)
+
+test19
+
+test20 
+
+```
+
+Logo, a variável `Industrial Production` é uma boa preditora do volume de vendas 
+de caminhões.
+
+
+**Trucks x Commodity Price Index**
+
+
+```{r}
+
+test21<-grangertest(Trucks~`Commodity Price Index`, order=3, data)
+
+test22<-grangertest(`Commodity Price Index`~Trucks, order=3, data)
+
+test21
+
+test22
+
+```
+
+Logo, a variável `Commodity Price Index` não é uma boa preditora para a o 
+volume de vendas de caminhões.
+
+
+### Estimação do modelo por Minimos Quadrados Ordinários (MQO)
+
+```{r}
+
+lm1<-lm(Trucks~`IBC-BR`+`Industrial Production`+`Retail Sales`+`Business Credit Concessions`+
+          `Business Confidence Index`+`Commodity Price Index`+`Index of Employed Persons - Industry`+
+          `Base Interest Rate`+`Uncertainty Index`+`Tx Cambio Real`, data)
+
+summary(lm1)
+
+```
+
+Estimação do modelo por MQO apenas com as variáveis que apresentaram capacidade
+preditiva através do _Teste de Granger_
+
+```{r}
+
+lm2<-lm(Trucks~`Industrial Production`+`Retail Sales`+`Business Credit Concessions`+
+          `Business Confidence Index`+`Index of Employed Persons - Industry`+
+          `Uncertainty Index`, data)
+
+summary(lm2)
+
+pred_values_mqo<-lm2$fitted.values
+
+
+```
+
+
+  
+As variáveis preditoras apresentam o sinal esperado e são estatisticamente 
+significantes:
+
+* 1%: `Intercepto`, `Industrial Production`, `Business Confidence Index`, `Index of Employed Persons - Industry`
+
+* 5%: `Retail Sales`
+
+O $R^2$ apresenta valor igual a 0.7318, ou seja, 73.18% da variabilidade do volume 
+de vendas de caminhões é explicado pelas variaveis preditoras do modelo.
+
+
+## Análise de Séries Temporais 
+
+### Modelo Auto - Regressivo (AR)
+
+Em modelos auto-regressivos, utiliza-se a variável de interesse, defasada em determinados
+periodos para prever seu valor em um cenario futuro. Desta forma, o modelo de previsão de 
+vendas de caminhões, utilizará a variável `Trucks` defasada em 1,4,6 10 e 12 meses.
+
+Estimação do modelo autoregressivo com defasagens de 1,4,6,10 e 12 meses. 
+
+```{r}
+
+ar_model<-arma(Trucks,lag=list(ar=c(1,4,6,10,12),ma=NULL), coef = NULL,
+include.intercept = TRUE, series = data, qr.tol = 1e-07)
+
+summary(ar_model)
+
+pred_values<-ar_model$fitted.values #Predicted values
+  
+
+```
+
+Portanto, o modelo auto-regressivo estimado para o volume de vendas de caminhões 
+segue a seguinte forma funcional 
+
+$$\widehat{Trucks}_t=498.82+0.77Trucks_{t-1}+0.15Trucks_{t-4}-0.04Trucks_{t-6}-0.13Trucks_{t-10}+0.20Trucks_{t-12 }$$
+
+
+A partir do gráfico abaixo, é possivel perceber algumas tendências do comportamento
+das vendas de caminhões no Brasil. È possivel perceber que no ano de 2008 houve 
+uma queda abrupta, em decorrência da crise financeira internacional que escasseou 
+o crédito e fluxo de capitais para os mercados emergentes como o Brasil. No ano 
+de 2009, como forma de atenuar o impacto sobre a indústria automobilística, o governo 
+reduziu o IPI para estimular o setor. Em 2010, os efeitos positivos da medida se 
+refletiram em maior nivel de vendas de caminhões, puxados em parte pelo aquecimento 
+da atividade econômica. No ano de 2015, também houve uma queda acentuada da venda 
+de caminhões no Brasil.
+
+Neste ano, o Brasil passava por uma grave crise econômica, com um nível geral de 
+preços elevado, desemprego crescente e a taxa de juros SELIC subindo para atenuar 
+os efeitos deletérios da inflação. Considerando o biênio 2015-2016, a queda do PIB 
+foi de aproximadamente 8,0%. A partir do 2º semestre de 2016 e ao longo do ano de 2017, 
+com o país consolidando importantes reformas estruturais, no campo fiscal a PEC do 
+Teto de Gastos, no campo microeconômico a Reforma Trabalhista, além da queda consistente 
+da Taxa Selic, o nivel de confiança dos empresarios e a atração capital estrangeiro 
+contribuiram de forma expressiva para a retomada do crescimento economico consistente, 
+o que levou as vendas de caminhões voltar a subir gradualmente. No entanto, como mostra 
+o gráfico 1, no ano de 2020, devido a pandemia do coronavirus, a venda de caminhões voltou 
+a apresentar forte queda. Ao longo de 2021, com a parcial normalização das atividades econômicas,
+o setor se recuperou com elevação gradual do volume de vendas de caminhões.
+
+
+
+
+
+```{r}
+
+data$Date<-as.Date(Date)
+
+graf<-ggplotly(ggplot(data, aes(x=Date)) +
+    geom_line(aes(y=Trucks), colour="blue") +
+    geom_line(aes(y=pred_values), colour="red")+
+    theme_light() +
+    scale_x_date(date_labels = "%Y", date_breaks = "1 year")+
+    labs(x="Ano", y="Vendas de Caminhões", title=" Grafico 1: Evolução da venda de caminhões no Brasil - Valores efetivos vs valores estimados") +
+    theme(plot.title = element_text(hjust=0.5, size=10, face="bold"),
+          axis.text.x=element_text(angle=45, size=10)))
+
+graf
+
+```
+
+
+
+## Conclusões 
+
+
+Como mostram os resultados obtidos, a venda de caminhões no Brasil é fortemente 
+dependente das condições macroeconômicas em âmbito nacional e internacional. Em 
+âmbito nacional, variáveis como Vendas no Varejo, Produção Industrial e Concessão 
+de Crédito impactam de forma significativa o volume de vendas de caminhões. Além
+disso, como esperado, o indice de confiança dosempresários também apresenta impacto
+relavante sobre os negócios deste setor. 
+
+Os resultados obtidos, nos modelos de MQO e AR foram estatisticamente significantes, 
+representando de forma acurada a  variável "Venda de Caminhões no Brasil", o que 
+corrobora a apropriada especificação  dos modelos. Como mostrado no gráfico 1, a 
+evolução efetiva e estimada do volume de vendas de caminhões seguem uma tendência 
+bastante similar, o que indica evidências de uma boa calibragem do modelo AR aos dados.
